@@ -12,149 +12,265 @@
 #define STRING_VERSION_MAJOR 0
 #define STRING_VERSION_MINOR 0
 
-#include <stddef.h>    // size_t, ptrdiff_t, etc.
-#include <stdarg.h>    // vararg functionality.
-#include <stdlib.h>    // malloc, free.
-#include <stdexcept>   // std::out_of_range, std::length_error.
-#include <cassert>
+#include <stddef.h>  // size_t, ptrdiff_t, etc.
+#include <stdexcept> // std::out_of_range, std::length_error.
+#include <cstddef>
 #include <sstream>
 #include <iterator>
 
-namespace detail {
-    class string{
+namespace detail
+{
+    class string
+    {
+        template<typename E, typename... Args>
+        inline static void static_enforce(bool condition, Args&&... args){
+            if(condition){
+                throw_exception(E(static_cast<Args&&>(args)...));
+            }
+        }
+
     public:
-        using iterator = char*;
-        using const_iterator = const char*;
         using value_type = char;
         using pointer = char*;
-        using const_pointer = char*;
+        using const_pointer = const char*;
         using reference = char&;
         using const_reference = const char&;
-		using reverse_iterator = std::reverse_iterator<iterator>;
-		using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+        
+        using iterator = pointer;
+        using const_iterator = const_pointer;
+        using reverse_iterator = std::reverse_iterator<iterator>;
+        using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+
     public:
-        string();
-        string(const string& rhs);
-        string(const std::string& rhs);
-        explicit string(const char* cstr);
-        string(string&& rhs) noexcept;
-        string(std::string&& rhs) noexcept;
+        string() 
+            : string("") 
+        {}
+
+        string(const string& str) 
+            : m_size{0}, m_capacity{0}
+        {
+            m_size = str.size();
+            m_capacity = str.capacity();
+            m_buffer = new char[m_capacity];
+            std::copy(str.cbegin(), str.cend(), m_buffer);
+        }
+
+        string(const std::string &rhs);
+        
+        explicit string(const char *str)
+            : m_size{0}, m_capacity{0}
+        {
+            m_size = length_helper(str);
+		    m_capacity = m_size + 1;
+		    m_buffer = new char[m_capacity];
+		    std::copy(str, str + m_size, m_buffer);
+        }
+
+        string(string &&rhs) noexcept;
+        string(std::string &&rhs) noexcept;
+        string(const_pointer, const size_t);
         string(std::initializer_list<char> list);
         ~string();
 
-		iterator begin() noexcept { return m_buffer; };
-		iterator end() noexcept { return (m_buffer + m_size); };
-		const_iterator cbegin() const noexcept { return m_buffer; };
-		const_iterator cend() const noexcept { return m_buffer + m_size; };
+        iterator begin() noexcept { return m_buffer; };
+        iterator end() noexcept { return (m_buffer + m_size); };
+        const_iterator cbegin() const noexcept { return m_buffer; };
+        const_iterator cend() const noexcept { return m_buffer + m_size; };
 
-		reverse_iterator rbegin() { return reverse_iterator(end()); }
-		reverse_iterator rend() { return reverse_iterator(begin()); }
+        reverse_iterator rbegin() { return reverse_iterator(end()); }
+        reverse_iterator rend() { return reverse_iterator(begin()); }
         const_reverse_iterator crbegin() const noexcept { return const_reverse_iterator(cend()); }
-		const_reverse_iterator crend() const noexcept { return const_reverse_iterator(cbegin()); }
+        const_reverse_iterator crend() const noexcept { return const_reverse_iterator(cbegin()); }
 
-        static constexpr auto npos          { static_cast<size_t>(-1) };
-        size_t size() const noexcept        { return m_size; }
-        size_t capacity() const noexcept    { return m_capacity; }
-        size_t max_size() const noexcept    { return std::numeric_limits<size_t>::max(); }
-        char* data()                        { return m_buffer; }
-        const char* data() const            { return m_buffer; }
-        const char* c_str() const noexcept;
+        static constexpr auto npos{static_cast<size_t>(-1)};
+        size_t size() const noexcept { return m_size; }
+        size_t length() const noexcept { return m_size; }
+        size_t capacity() const noexcept { return m_capacity; }
+        size_t max_size() const noexcept { return std::numeric_limits<size_t>::max(); }
+        pointer data() { return m_buffer; }
+        const_pointer data() const { return m_buffer; }
+        const_pointer c_str() const noexcept { return m_buffer; };
 
-        char& at(size_t i) noexcept{}
-        const char& at(size_t i) const noexcept{}
-        string substr(size_t pos = 0, size_t count = npos) const;
-        constexpr string substr(size_t pos = 0, size_t count = npos) const;
-        constexpr void clear() noexcept;
+        reference operator[](size_t pos) { return *(begin() + pos); }
+        const_reference operator[](size_t pos) const { return *(cbegin() + pos); } 
+        
+        reference at(size_t n) noexcept {
+            static_enforce<std::out_of_range>((n < m_size), 
+            "Out Of Range Exception: Requested array index does not fall within the array range.");
+            return (*this)[n];
+        }
+
+        const_reference at(size_t n) const noexcept {
+            static_enforce<std::out_of_range>((n < m_size), 
+            "Out Of Range Exception: Requested array index does not fall within the array range.");
+            return (*this)[n];
+        }
+        
+        string substr(size_t pos = 0, size_t count = npos) const& {
+            static_enforce<std::out_of_range>(pos <= size(), "");
+            return string(data() + pos, std::min(count, size() - pos));
+        }
+
+        string substr(size_t pos = 0, size_t count = npos) && {};
         void resize(size_t n);
-        void push_back(char c){}
-        void reserve(const size_t){}
+        void push_back(char c) {}
+        void reserve(const size_t) {}
         void shrink_to_fit();
-        auto index(const char c) const;
-        char& operator[](size_t i) noexcept { return m_buffer[i]; }
-        const char& operator[](size_t i) const noexcept { return m_buffer[i]; }
+        void clear() noexcept { resize(0); }
+        bool empty() const { return size() == 0; }
+        
+        int index(const char ch) const
+        {
+            int pos = 0;
+            for(auto iter = cbegin(); iter != cend(); ++iter, ++pos)
+                if(*iter == ch)
+                    return pos;
+            
+            return npos;
+        }
+        
+        char &operator[](size_t i) noexcept { return m_buffer[i]; }
+        const char &operator[](size_t i) const noexcept { return m_buffer[i]; }
+
+        void swap(string& rhs) noexcept;
 
         string& capitalize();
         string& lower();
         string& upper();
-        const char& capitalize() const;
-        const char& lower() const;
-        const char& upper() const;
-        
+        const_reference capitalize() const;
+        const_reference lower() const;
+        const_reference upper() const;
+
         constexpr bool is_alnum() const noexcept;
         constexpr bool is_lower() const noexcept;
         constexpr bool is_upper() const noexcept;
-
-        constexpr bool contains(const string& s) const noexcept;
-        constexpr bool contains(const char* s) const noexcept;
-
-        constexpr bool starts_with(const char* str) const noexcept
+        
+        constexpr bool compare(const string& str)
         {
-            const auto len = length(str);
-            auto n = 0, y = 0;
-            for(auto iter = cbegin(); iter != cend(); ++iter, ++n){
-                if(*iter != str[n]) return false;
-                if(*iter == str[n]) ++y;
-                if(n == len) break; 
-            }
-            return (y == len);
-        }
-
-        constexpr bool starts_with(const string& str) const noexcept {
-            for(auto first = cbegin(), second = str.cbegin();
-                first != cend() && second != str.cend(); 
-                ++first, ++second)
-            {
-                if(*first != *second) return false;
-            }
-        }
-
-        constexpr bool starts_with(const std::string& str) const noexcept {
-            auto first = cbegin();
-            auto& second = str.cbegin();
+            if(str.size() != size() || str.capacity() != capacity())
+                return false;
             
-            for(; first != cend() && second != str.cend(); 
-                ++first, ++second)
-            {
-                if(*first != *second) return false;
+            for(auto first = cbegin(), second = str.cbegin(); 
+            first != cend() && second != str.cend(); 
+            ++first, ++second){
+                if(*first != *second)
+                    return false;
             }
+
+            return true;
         }
-        
-        constexpr bool ends_with(const string& s) const noexcept;
-        
-        constexpr bool ends_with(const char* str) const noexcept{
-            const auto len = length(str);
+
+        constexpr bool contains(const string& str) const noexcept;
+        constexpr bool contains(const char *str) const noexcept;
+
+        constexpr bool starts_with(const char *str) const noexcept
+        {
+            const auto len = length_helper(str);
             auto n = 0, y = 0;
-            for(auto iter = crbegin(); iter != crend(); ++iter, ++n){
-                if(*iter != str[n]) return false;
-                if(*iter == str[n]) ++y;
-                if(n == len) break; 
+            for (auto iter = cbegin(); iter != cend(); ++iter, ++n)
+            {
+                if (*iter != str[n])
+                    return false;
+                if (*iter == str[n])
+                    ++y;
+                if (n == len)
+                    break;
             }
             return (y == len);
         }
 
-        string& operator=(const string& rhs);
-        string& operator+=(const string& rhs);
-        string operator+(const string& rhs);
-        friend std::ostream& operator<<(std::ostream& out, const string& rhs);
-        friend bool operator==(const char* lhs, const string& rhs);
-		friend bool operator==(const string& lhs, const char* rhs);
-        friend bool operator==(const string& lhs, const string& rhs);
-        friend bool operator!=(const string& lhs, const string& rhs);
-    private:
-        char* m_buffer = nullptr;
-        size_t m_size = 0;
-        size_t m_capacity = 0;
-        void reallocate(size_t n_capacity);
+        constexpr bool starts_with(const string &str) const noexcept
+        {
+            for (auto first = cbegin(), second = str.cbegin();
+                 first != cend() && second != str.cend();
+                 ++first, ++second)
+            {
+                if (*first != *second)
+                    return false;
+            }
+        }
+
+        constexpr bool starts_with(const std::string &str) const noexcept
+        {
+            auto first = cbegin();
+            auto &second = str.cbegin();
+
+            for (; first != cend() && second != str.cend();
+                 ++first, ++second)
+            {
+                if (*first != *second)
+                    return false;
+            }
+        }
+
+        constexpr bool ends_with(const string &str) const noexcept 
+        {
+            auto first = crbegin();
+            auto second = str.cbegin();
+
+            for (;first != crend() && second != str.cend();
+                 ++first, ++second)
+            {
+                if (*first != *second)
+                    return false;
+            }
+        }
+
+        constexpr bool ends_with(const std::string &str) const noexcept
+        {
+            auto first = crbegin();
+            auto &second = str.cbegin();
+
+            for (; first != crend() && second != str.cend();
+                 ++first, ++second)
+            {
+                if (*first != *second)
+                    return false;
+            }
+        }
+
+        constexpr bool ends_with(const char *str) const noexcept
+        {
+            const auto len = length_helper(str);
+            auto n = 0, y = 0;
+            for (auto iter = crbegin(); iter != crend(); ++iter, ++n)
+            {
+                if (*iter != str[n])
+                    return false;
+                if (*iter == str[n])
+                    ++y;
+                if (n == len)
+                    break;
+            }
+            return (y == len);
+        }
+
+        string& operator=(const string &rhs);
+        string& operator=(string&& rhs);
+        string& operator+=(const string &rhs);
+        string operator+(const string &rhs);
         
-        static size_t length(const char* cstr) noexcept 
+        friend void swap(string& lhs, string& rhs);
+        friend std::ostream &operator<<(std::ostream &out, const string &rhs);
+        friend bool operator==(const char *lhs, const string &rhs);
+        friend bool operator==(const string &lhs, const char *rhs);
+        friend bool operator==(const string &lhs, const string &rhs);
+        friend bool operator!=(const string &lhs, const string &rhs);
+
+    private:
+        size_t m_size;
+        size_t m_capacity;
+        char *m_buffer;
+        
+        void reallocate(size_t n_capacity);
+        static size_t length_helper(const char *cstr) noexcept
         {
             if (*cstr == '\0')
-			    return 0;
+                return 0;
 
             size_t n = 0;
-            while (*(++cstr) != '\0') {
-                ++n;
-            }
+            while (*(++cstr) != '\0') ++n;
+
             return n;
         }
     };
