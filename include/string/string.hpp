@@ -77,10 +77,40 @@ namespace detail {
 
         constexpr bool contains(const string& s) const noexcept;
         constexpr bool contains(const char* s) const noexcept;
-        constexpr bool starts_with(const string& s) const noexcept;
-        constexpr bool starts_with(const char* s) const noexcept;
+
+        constexpr bool starts_with(const string& str) const noexcept {
+            for(auto first = this->cbegin(), second = str.cbegin();
+                first != this->cend() && second != str.cend(); 
+                ++first, ++second)
+            {
+                
+            }
+        }
+        
+        constexpr bool starts_with(const char* str) const noexcept
+        {
+            const auto len = length(str);
+            auto n = 0, y = 0;
+            for(auto iter = this->cbegin(); iter != this->cend(); ++iter, ++n){
+                if(*iter != str[n]) return false;
+                if(*iter == str[n]) ++y;
+                if(n == len) break; 
+            }
+            return (y == len);
+        }
+        
         constexpr bool ends_with(const string& s) const noexcept;
-        constexpr bool ends_with(const char* s) const noexcept;
+        
+        constexpr bool ends_with(const char* str) const noexcept{
+            const auto len = length(str);
+            auto n = 0, y = 0;
+            for(auto iter = this->crbegin(); iter != this->crend(); ++iter, ++n){
+                if(*iter != str[n]) return false;
+                if(*iter == str[n]) ++y;
+                if(n == len) break; 
+            }
+            return (y == len);
+        }
 
         string& operator=(const string& rhs);
         string& operator+=(const string& rhs);
@@ -95,7 +125,18 @@ namespace detail {
         size_t m_size = 0;
         size_t m_capacity = 0;
         void reallocate(size_t n_capacity);
-        static size_t length(const char* cstr) noexcept;
+        
+        static size_t length(const char* cstr) noexcept 
+        {
+            if (*cstr == '\0')
+			    return 0;
+
+            size_t n = 0;
+            while (*(++cstr) != '\0') {
+                ++n;
+            }
+            return n;
+        }
     };
 }
 
